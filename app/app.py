@@ -123,58 +123,30 @@ def powers_by_id(id):
             return response
         
 
-@app.route('/hero_powers', methods=['POST'])
+@app.route('/hero_powers', methods=['GET','POST'])
 def create_hero_power():
-    data = request.json
+    power = Power.query.all()
 
-    # Validate the required fields
-    if 'strength' not in data or 'power_id' not in data or 'hero_id' not in data:
-        response_body = {
-            "errors": ["strength, power_id, and hero_id are required fields"]
-        }
-        response = make_response(jsonify(response_body), 400)
-        return response
+    if request.method == 'POST':
+        # Handle POST request
+        data = request.get_json()
+        strength = data.get('strength')
+        power_id = data.get('power_id')
+        hero_id = data.get('hero_id')
 
-    # Create a new HeroPower instance
-    hero_power = HeroPower(strength=data['strength'], power_id=data['power_id'], hero_id=data['hero_id'])
+        valid_strengths = ['Strong', 'Weak', 'Average']
+        if strength not in valid_strengths:
+            return make_response(jsonify({'errors': ['Validation errors']}), 400)
 
-    try:
-        db.session.add(hero_power)
+        power = Power.query.get(power_id)
+        hero = Hero.query.get(hero_id)
+
+        if not power or not hero:
+            return make_response(jsonify({'errors': ['Power or Hero not found']}), 404)
+
+        new_hero_power = hero_powers.insert().values(strength=strength, power_id=power_id, hero_id=hero_id)
+        db.session.execute(new_hero_power)
         db.session.commit()
-    except ValueError:
-        response_body = {
-            "errors": ["validation errors"]
-        }
-        response = make_response(jsonify(response_body), 400)
-        return response
-
-    # Retrieve the related Hero data
-    hero = Hero.query.filter_by(id=data['hero_id']).first()
-
-    if hero is None:
-        response_body = {
-            "errors": ["Hero not found"]
-        }
-        response = make_response(jsonify(response_body), 404)
-        return response
-
-    # Retrieve the related Powers data
-    powers = Power.query.join(HeroPower).filter_by(hero_id=data['hero_id']).all()
-    powers_data = [{
-        "id": power.id,
-        "name": power.name,
-        "description": power.description
-    } for power in powers]
-
-    response_body = {
-        "id": hero.id,
-        "name": hero.name,
-        "super_name": hero.super_name,
-        "powers": powers_data
-    }
-
-    response = make_response(jsonify(response_body), 200)
-    return response
 
 if __name__ == '__main__':
     app.run(port=5555)
